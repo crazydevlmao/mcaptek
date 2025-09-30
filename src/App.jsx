@@ -2,13 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, useMotionValue, useSpring } from "framer-motion";
 
 /* ====================== CONFIG ====================== */
-const COIN_ADDRESS = "...pump";
+const COIN_ADDRESS = "C87mBDq8yhfi4eBAjcNk8tjB9K97b3VAX5Me7WUrpump";
 const API_BASE =
   import.meta.env.DEV
     ? "http://localhost:3001"
     : (import.meta.env.VITE_API_BASE ?? "").trim() ||
       "https://mcaptek.onrender.com";
-
 
 // Main headline format (chunky, no decimals)
 const formatUSD = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -31,6 +30,30 @@ const formatPct = (p) => {
   return ap.toFixed(2);
 };
 
+/* ===== Milestones (cap in USD). ===== */
+const MILESTONES = [
+  { cap: 50_000,   label: "PAY DEX" },
+  { cap: 86_000,   label: "Migration → 10× boosts" }, // migration = 86k
+  { cap: 100_000,  label: "25% of creator rewards buy & burn" },
+  { cap: 150_000,  label: "10× boosts" },
+  { cap: 200_000,  label: "50% of creator rewards buy & burn" },
+  { cap: 250_000,  label: "30× boosts" },
+  { cap: 400_000,  label: "$1,000 buy & burn" },
+  { cap: 500_000,  label: "100% of creator rewards buy & burn" },
+  { cap: 650_000,  label: "30× boosts" },
+  { cap: 850_000,  label: "100% of creator rewards buy & burn" },
+  { cap: 1_000_000, label: "50× boosts + 100% of creator rewards buy & burn" },
+];
+
+/* Emoji helper based on label keywords */
+const emojiFor = (label) => {
+  const e = [];
+  if (/boost/i.test(label)) e.push("⚡");
+  if (/creator rewards.*buy.*burn/i.test(label)) e.push("🔥");
+  if (/\$?\s*1,?000/i.test(label)) e.push("💰");
+  return e.join(" ");
+};
+
 export default function App() {
   // animated number (value only – container stays fixed)
   const mv = useMotionValue(0);
@@ -43,13 +66,64 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [howOpen, setHowOpen] = useState(false);
 
-  // keep the previous valid market cap in a ref (prevents race w/ setState)
+  /* PERSISTENT achieved state: once true, never unchecks (saved to localStorage) */
+  const [achieved, setAchieved] = useState(() => {
+    try {
+      const raw = localStorage.getItem("mcap_achieved_v1");
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(parsed) && parsed.length === MILESTONES.length) return parsed;
+    } catch {}
+    return MILESTONES.map(() => false);
+  });
+
+  // keep previous valid market cap
   const prevMcRef = useRef(null);
 
-  // minimal luxury cursor (subtle ring)
+  // cursor (your minimal luxury style)
   const [cursor, setCursor] = useState({ x: 0, y: 0 });
   const trail = useRef(Array.from({ length: 6 }, () => ({ x: 0, y: 0 })));
 
+  // ===== Milestones scroller (seamless marquee) =====
+  const msWrapRef = useRef(null);       // scroll container
+  const trackARef = useRef(null);       // first track width for wrap
+  const firstItemRef = useRef(null);    // measure step width for arrows
+  const pausedRef = useRef(false);      // hover pause
+  const pauseUntilRef = useRef(0);      // pause after arrow click
+  const speedRef = useRef(0.1);         // px/ms
+
+  // helper to render a single milestone pill
+  const Pill = ({ m, idx }) => {
+    const reached = achieved[idx];
+    return (
+      <div className="inline-flex items-center">
+        <div
+          ref={idx === 0 ? firstItemRef : null}
+          className="relative mx-1 px-3 py-1 rounded-md text-[11px] sm:text-xs font-mono inline-flex items-center gap-2"
+          style={{
+            border: "1px solid rgba(255,255,255,0.14)",
+            background: "rgba(255,255,255,0.06)",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {reached && (
+            <div
+              className="absolute inset-0 rounded-md"
+              style={{ background: "rgba(16,185,129,0.22)", boxShadow: "inset 0 0 0 1px rgba(16,185,129,0.55)" }}
+            />
+          )}
+          <span className="opacity-80 relative z-10">{m.cap != null ? `$${formatUSD(m.cap)}` : "Info"}</span>
+          <span className="opacity-50 relative z-10">→</span>
+          <span className="font-semibold relative z-10">
+            {emojiFor(m.label)} {m.label}
+          </span>
+          {reached && <span className="relative z-10 text-emerald-400 font-bold ml-1">✔</span>}
+        </div>
+        <div className="h-4 w-px mx-1" style={{ background: "rgba(255,255,255,0.5)" }} />
+      </div>
+    );
+  };
+
+  /* =================== Effects =================== */
   useEffect(() => {
     const onMove = (e) => setCursor({ x: e.clientX, y: e.clientY });
     window.addEventListener("mousemove", onMove);
@@ -65,11 +139,17 @@ export default function App() {
     return () => clearInterval(id);
   }, [cursor]);
 
-  // keep formatted number (monospace) from spring
   useEffect(() => {
     const unsub = smooth.on("change", (v) => setDisplay(`$${formatUSD(Math.max(0, v))}`));
     return () => unsub();
   }, [smooth]);
+
+  // 🔒 persist achieved milestones whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem("mcap_achieved_v1", JSON.stringify(achieved));
+    } catch {}
+  }, [achieved]);
 
   // poll marketcap every 2s
   useEffect(() => {
@@ -78,33 +158,69 @@ export default function App() {
         const res = await fetch(`${API_BASE}/api/marketcap?ts=${Date.now()}`, { cache: "no-store" });
         const json = await res.json();
         const mc = Number(json?.marketCap);
-        if (!isFinite(mc) || mc <= 0) return; // ignore bad data
+        if (!isFinite(mc) || mc <= 0) return;
 
         const prev = prevMcRef.current;
 
         if (prev != null && prev > 0) {
           const d = mc - prev;
-          // safe percent: if prev extremely small, fall back to 0
           const p = prev !== 0 ? (d / prev) * 100 : 0;
-
           setDiff(d);
           setPct(p);
-          // STICKY DIRECTION: if no change, keep previous direction
           setDir((prevDir) => (d > 0 ? 1 : d < 0 ? -1 : prevDir));
         }
 
-        // update springs and prev after computing deltas
+        // mark newly reached milestones (sticky forever; persisted by effect above)
+        setAchieved((prevAch) =>
+          prevAch.map((ok, i) => ok || (MILESTONES[i].cap != null && mc >= MILESTONES[i].cap))
+        );
+
         mv.set(mc);
         prevMcRef.current = mc;
-      } catch (_) {
-        // keep prior snapshot/diff
-      }
+      } catch (_) {}
     }
     load();
     const id = setInterval(load, 2000);
     return () => clearInterval(id);
   }, [mv]);
 
+  // measure first track width for seamless wrap
+  const measureTrackWidth = () => {
+    const el = trackARef.current;
+    if (!el) return 0;
+    return el.getBoundingClientRect().width || 0;
+  };
+
+  // true marquee loop: A + B (duplicate); when scrollLeft >= width(A), subtract width(A)
+  useEffect(() => {
+    const wrap = msWrapRef.current;
+    if (!wrap) return;
+
+    let raf;
+    let last = performance.now();
+
+    const tick = (ts) => {
+      const dt = Math.min(50, ts - last);
+      last = ts;
+
+      const paused = pausedRef.current || performance.now() < pauseUntilRef.current;
+      if (!paused) {
+        const widthA = measureTrackWidth();
+        if (widthA > 0) {
+          wrap.scrollLeft += speedRef.current * dt;
+          if (wrap.scrollLeft >= widthA) {
+            wrap.scrollLeft -= widthA; // seamless wrap
+          }
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  /* =================== UI helpers =================== */
   const shortAddr = useMemo(() => `${COIN_ADDRESS.slice(0, 6)}…${COIN_ADDRESS.slice(-6)}`, []);
 
   const copyAddr = async () => {
@@ -115,14 +231,24 @@ export default function App() {
     } catch {}
   };
 
-  // === Arrow helpers (ALWAYS visible) ===
+  // delta visuals
   const arrowSymbol = dir === 1 ? "▲" : "▼";
   const arrowColor = dir === 1 ? "rgb(52 211 153)" : "rgb(244 63 94)";
   const arrowAnimY = dir === 1 ? [0, -7, 0] : [0, 7, 0];
 
-  // Signed strings using precise formatters
-  const signedAmount = `${dir === 1 ? "+" : "-"}${formatUSDDelta(diff)}`;
-  const signedPct = `${dir === 1 ? "+" : "-"}${formatPct(pct)}%`;
+  // arrows: step one pill; pause 2s; resume marquee from same point
+  const firstItemWidth = () => {
+    const el = firstItemRef.current;
+    if (!el) return 160;
+    const rect = el.getBoundingClientRect();
+    return rect.width + 16;
+  };
+  const onArrow = (dirStep) => {
+    const wrap = msWrapRef.current;
+    if (!wrap) return;
+    pauseUntilRef.current = performance.now() + 2000; // pause
+    wrap.scrollBy({ left: dirStep * firstItemWidth(), behavior: "smooth" });
+  };
 
   return (
     <div className="min-h-screen text-white relative overflow-hidden font-[Inter,ui-sans-serif,system-ui]">
@@ -138,7 +264,7 @@ export default function App() {
         }}
       />
 
-      {/* Subtle cursor */}
+      {/* Cursor + faint trail */}
       <motion.div
         className="pointer-events-none fixed z-[9999]"
         animate={{ x: cursor.x, y: cursor.y }}
@@ -173,41 +299,89 @@ export default function App() {
       ))}
 
       {/* Header */}
-<header className="absolute top-5 left-0 right-0 flex items-center px-4">
-  {/* Left side (CA on mobile, centered on larger) */}
-  <div className="flex-1 flex justify-start sm:justify-center">
-    <div className="flex items-center gap-3">
-      <span className="font-mono text-xs sm:text-sm bg-white/10 px-3 py-1.5 rounded border border-white/15">
-        {shortAddr}
-      </span>
-      <button
-        onClick={copyAddr}
-        className="text-xs sm:text-sm px-3 py-1.5 rounded border border-emerald-400/40 hover:border-emerald-300/80 hover:bg-emerald-400/10 transition"
+      <header className="absolute top-5 left-0 right-0 flex items-center px-4">
+        {/* Left side (CA on mobile, centered on larger) */}
+        <div className="flex-1 flex justify-start sm:justify-center">
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-xs sm:text-sm bg-white/10 px-3 py-1.5 rounded border border-white/15">
+              {shortAddr}
+            </span>
+            <button
+              onClick={copyAddr}
+              className="text-xs sm:text-sm px-3 py-1.5 rounded border border-emerald-400/40 hover:border-emerald-300/80 hover:bg-emerald-400/10 transition"
+            >
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+        </div>
+
+        {/* Right side (X + How it works) */}
+        <div className="flex gap-2">
+          <a
+            href="https://x.com/i/communities/1973142343646593494"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1.5 text-xs sm:text-sm rounded border border-white/15 hover:border-white/30 hover:bg-white/10 transition"
+          >
+            X
+          </a>
+          <button
+            className="howwiggle px-3 py-1.5 text-xs sm:text-sm rounded border border-white/15 hover:border-white/30 hover:bg-white/10 transition"
+            onClick={() => setHowOpen(true)}
+          >
+            How it works
+          </button>
+        </div>
+      </header>
+
+      {/* ===== Milestones BAR (absolute; lowered a touch; arrows outside; FADED edges; seamless loop) ===== */}
+      <div
+        className="absolute z-20 left-1/2 -translate-x-1/2 top-[116px] w-full max-w-4xl"
+        onPointerEnter={() => { pausedRef.current = true; }}
+        onPointerLeave={() => { pausedRef.current = false; }}
       >
-        {copied ? "Copied!" : "Copy"}
-      </button>
-    </div>
-  </div>
+        {/* Faded edges (opacity-only gradients) */}
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-12"
+             style={{ background: "linear-gradient(90deg, rgba(7,9,13,0.96), rgba(7,9,13,0))" }} />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-12"
+             style={{ background: "linear-gradient(270deg, rgba(7,9,13,0.96), rgba(7,9,13,0))" }} />
 
-  {/* Right side (X + How it works) */}
-  <div className="flex gap-2">
-    <a
-      href="https://x.com/i/communities/1973142343646593494"
-      target="_blank"
-      rel="noopener noreferrer"
-      className="px-3 py-1.5 text-xs sm:text-sm rounded border border-white/15 hover:border-white/30 hover:bg-white/10 transition"
-    >
-      X
-    </a>
-    <button
-      className="howwiggle px-3 py-1.5 text-xs sm:text-sm rounded border border-white/15 hover:border-white/30 hover:bg-white/10 transition"
-      onClick={() => setHowOpen(true)}
-    >
-      How it works
-    </button>
-  </div>
-</header>
+        {/* Arrows OUTSIDE; pause on hover/click */}
+        <button
+          onClick={() => onArrow(-1)}
+          onMouseEnter={() => { pausedRef.current = true; }}
+          onMouseLeave={() => { pausedRef.current = false; }}
+          className="absolute -left-7 top-1/2 -translate-y-1/2 z-10 px-2.5 py-1.5 rounded-md border border-white/15 hover:bg-white/10 text-sm"
+          aria-label="Previous milestones"
+        >
+          ←
+        </button>
+        <button
+          onClick={() => onArrow(1)}
+          onMouseEnter={() => { pausedRef.current = true; }}
+          onMouseLeave={() => { pausedRef.current = false; }}
+          className="absolute -right-7 top-1/2 -translate-y-1/2 z-10 px-2.5 py-1.5 rounded-md border border-white/15 hover:bg-white/10 text-sm"
+          aria-label="Next milestones"
+        >
+          →
+        </button>
 
+        {/* Seamless marquee: Track A + Track B (duplicate) */}
+        <div
+          ref={msWrapRef}
+          className="no-scrollbar overflow-x-hidden whitespace-nowrap rounded-2xl border border-white/12 bg-white/[0.06] backdrop-blur-md px-8 py-1.5"
+        >
+          {/* Track A (measure width) */}
+          <div ref={trackARef} className="inline-flex items-center align-top">
+            {MILESTONES.map((m, idx) => <Pill key={`A-${idx}`} m={m} idx={idx} />)}
+          </div>
+          {/* Track B (duplicate continuation) */}
+          <div className="inline-flex items-center align-top">
+            {MILESTONES.map((m, idx) => <Pill key={`B-${idx}`} m={m} idx={idx} />)}
+          </div>
+        </div>
+      </div>
+      {/* ===== End Milestones BAR ===== */}
 
       {/* Main */}
       <main className="min-h-screen flex flex-col items-center justify-center px-4 text-center">
@@ -226,7 +400,6 @@ export default function App() {
             textAlign: "center",
           }}
         >
-          {/* animate glow only (no scale/position) */}
           <motion.span
             key={dir}
             animate={{
@@ -241,10 +414,10 @@ export default function App() {
           </motion.span>
         </div>
 
-        {/* Arrow + delta (ALWAYS visible, sticky direction, monospaced, fixed width) */}
+        {/* Arrow + delta (sticky direction) */}
         <div className="mt-5 flex items-center justify-center min-h-[28px]">
           <motion.div
-            key={dir + String(diff)} // retrigger slight motion on each refresh
+            key={dir + String(diff)}
             initial={{ opacity: 0, y: dir === 1 ? 8 : -8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35 }}
@@ -265,12 +438,17 @@ export default function App() {
               {arrowSymbol}
             </motion.span>
             <span className="font-medium">
-              {`${signedAmount} (${signedPct})`}
+              {`${formatUSDDelta(Math.abs(diff))} (${formatPct(Math.abs(pct))}%)`}
             </span>
             <span className="opacity-60 not-italic">since last snapshot</span>
           </motion.div>
         </div>
       </main>
+
+      {/* Footer */}
+      <footer className="absolute bottom-4 left-0 right-0 text-center text-[11px] sm:text-xs text-white/60">
+        Built for the culture • $mCAP • mcaptek
+      </footer>
 
       {/* How it works modal */}
       {howOpen && (
@@ -308,6 +486,8 @@ export default function App() {
       {/* Local styles */}
       <style>{`
         .howwiggle { animation: wiggle 2s ease-in-out infinite; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         @keyframes wiggle {
           0%, 92%, 100% { transform: translateX(0) rotate(0); }
           94% { transform: translateX(-2px) rotate(-1deg); }
@@ -318,5 +498,3 @@ export default function App() {
     </div>
   );
 }
-
-
