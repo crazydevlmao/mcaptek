@@ -7,7 +7,8 @@ const API_BASE =
   import.meta.env.DEV
     ? "http://localhost:3001"
     : (import.meta.env.VITE_API_BASE ?? "").trim() ||
-      "https://vandot-m6em.onrender.com";
+      "https://mcaptek.onrender.com";
+
 
 // Main headline format (chunky, no decimals)
 const formatUSD = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -317,3 +318,4 @@ export default function App() {
     </div>
   );
 }
+
