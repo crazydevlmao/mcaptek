@@ -6,7 +6,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // ==== EDIT THESE TWO LINES ====
-const TOKEN_MINT = "6xqYUEm22exMyaVJ4TYt931dy4U3sRXVQQQLk2wepump"; // <-- paste your mint
+const TOKEN_MINT = "CoZBkPqTTJU9EMktDs2tcs43jH2DwEunq8n9qX8npump"; // <-- paste your mint
 const SUPPLY = 1_000_000_000;              // <-- set your supply
 // ==============================
 
@@ -77,6 +77,7 @@ app.get("/api/health", (_, res) => {
 app.listen(PORT, () => {
   console.log(`Cache server listening on http://localhost:${PORT}`);
 });
+
 
 
 
