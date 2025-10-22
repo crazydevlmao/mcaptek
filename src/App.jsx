@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, useMotionValue, useSpring } from "framer-motion";
 
 /* ====================== CONFIG ====================== */
-const COIN_ADDRESS = "";
+const COIN_ADDRESS = "CoZBkPqTTJU9EMktDs2tcs43jH2DwEunq8n9qX8npump";
 const API_BASE =
   import.meta.env.DEV
     ? "http://localhost:3001"
@@ -475,8 +475,6 @@ export default function App() {
     </div>
   );
 }
-
-
 
 
 
