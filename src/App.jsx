@@ -30,6 +30,29 @@ const formatPct = (p) => {
   return ap.toFixed(2);
 };
 
+/* ===== Milestones (cap in USD). ===== */
+const MILESTONES = [
+  { cap: 50_000,   label: "PAY DEX" },
+  { cap: 86_000,   label: "Migration → 10× boosts" }, // migration = 86k
+  { cap: 100_000,  label: "25% of creator rewards buy & burn" },
+  { cap: 150_000,  label: "10× boosts" },
+  { cap: 200_000,  label: "50% of creator rewards buy & burn" },
+  { cap: 250_000,  label: "30× boosts" },
+  { cap: 400_000,  label: "$1,000 buy & burn" },
+  { cap: 500_000,  label: "100% of creator rewards buy & burn" },
+  { cap: 650_000,  label: "30× boosts" },
+  { cap: 850_000,  label: "100% of creator rewards buy & burn" },
+  { cap: 1_000_000, label: "50× boosts + 100% of creator rewards buy & burn" },
+];
+
+/* Emoji helper based on label keywords */
+const emojiFor = (label) => {
+  const e = [];
+  if (/boost/i.test(label)) e.push("⚡");
+  if (/creator rewards.*buy.*burn/i.test(label)) e.push("🔥");
+  if (/\$?\s*1,?000/i.test(label)) e.push("💰");
+  return e.join(" ");
+};
 
 export default function App() {
   // animated number (value only – container stays fixed)
@@ -475,7 +498,6 @@ export default function App() {
     </div>
   );
 }
-
 
 
 
