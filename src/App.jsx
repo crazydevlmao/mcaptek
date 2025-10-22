@@ -165,7 +165,7 @@ export default function App() {
         </div>
         <div className="flex gap-2">
           <a
-            href="https://x.com/i/communities/1973142343646593494"
+            href="https://x.com/i/communities/1981082782274376035"
             target="_blank"
             rel="noopener noreferrer"
             className="px-3 py-1.5 text-xs sm:text-sm rounded border border-white/15 hover:border-white/30 hover:bg-white/10 transition"
@@ -288,6 +288,7 @@ export default function App() {
     </div>
   );
 }
+
 
 
 
