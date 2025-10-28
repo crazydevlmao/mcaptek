@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, useMotionValue, useSpring } from "framer-motion";
 
 /* ====================== CONFIG ====================== */
-const COIN_ADDRESS = "CjpBaHNmGzX39UgVE12wvXbHxxXYGwGodtzAv6YeMcap";
+const COIN_ADDRESS = "Dr4REiBQotPtrzbYZUg5eJigAYLPUCDx1oKze1L8mcaP";
 const API_BASE =
   import.meta.env.DEV
     ? "http://localhost:3001"
@@ -165,7 +165,7 @@ export default function App() {
         </div>
         <div className="flex gap-2">
           <a
-            href="https://x.com/i/communities/1981082782274376035"
+            href="https://x.com/i/communities/1983269491900297305"
             target="_blank"
             rel="noopener noreferrer"
             className="px-3 py-1.5 text-xs sm:text-sm rounded border border-white/15 hover:border-white/30 hover:bg-white/10 transition"
@@ -288,6 +288,7 @@ export default function App() {
     </div>
   );
 }
+
 
 
 
